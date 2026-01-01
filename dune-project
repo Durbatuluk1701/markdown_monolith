@@ -17,10 +17,21 @@
 
 (package
  (name markdown_monolith)
- (synopsis "A short synopsis")
- (description "A longer description")
- (depends ocaml)
+ (synopsis
+  "Produce a single monolithic Markdown file by inlining linked files")
+ (description
+  "OCaml library + CLI to produce a single monolithic Markdown file by parsing with omd, detecting navigational TOC-like link lists, and inlining selected files. Remote inlining is opt-in.")
+ (depends
+  (ocaml
+   (>= 4.14))
+  (dune
+   (>= 3.20))
+  omd
+  cmdliner
+  lwt
+  (cohttp-lwt-unix
+   (>= 5.0)))
  (tags
-  ("add topics" "to describe" your project)))
+  (markdown documentation tools)))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
