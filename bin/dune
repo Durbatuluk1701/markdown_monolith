@@ -1,0 +1,4 @@
+(executable
+ (public_name markdown_monolith)
+ (name main)
+ (libraries markdown_monolith))
