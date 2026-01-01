@@ -1,2 +1,3 @@
 (library
- (name markdown_monolith))
+ (name monolith)
+ (libraries cohttp-lwt-unix lwt unix))
