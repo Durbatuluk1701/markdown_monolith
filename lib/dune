@@ -3,19 +3,14 @@
  (modules links))
 
 (library
- (name omd_utils)
- (libraries links omd)
- (modules omd_utils))
-
-(library
  (name categorize)
  (inline_tests)
  (preprocess
   (pps ppx_expect))
- (libraries links omd omd_utils)
+ (libraries links cmarkit)
  (modules categorize))
 
 (library
  (name monolith)
- (libraries links categorize omd cohttp-lwt-unix lwt unix omd_utils)
+ (libraries links categorize cmarkit cohttp-lwt-unix lwt unix)
  (modules monolith))

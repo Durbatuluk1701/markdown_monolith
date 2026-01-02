@@ -2,3 +2,10 @@
  (public_name markdown_monolith)
  (name main)
  (libraries monolith cmdliner lwt.unix))
+
+(executable
+ (public_name cmarkit_test)
+ (name cmarkit_test)
+ (flags
+  (:standard -w -27-32))
+ (libraries cmarkit))

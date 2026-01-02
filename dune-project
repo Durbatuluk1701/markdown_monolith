@@ -26,7 +26,7 @@
    (>= 4.14))
   (dune
    (>= 3.20))
-  omd
+  cmarkit
   cmdliner
   lwt
   (cohttp-lwt-unix

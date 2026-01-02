@@ -176,8 +176,29 @@ let reconcile_path path dest =
   resolve_path base_dir dest
 ;;
 
+let code_block_langs doc =
+  let open Cmarkit in
+  let module String_set = Set.Make (String) in
+  let block m acc = function
+    | Block.Code_block (cb, _) ->
+      let acc =
+        match Block.Code_block.info_string cb with
+        | None -> acc
+        | Some (info, _) ->
+          (match Block.Code_block.language_of_info_string info with
+           | None -> acc
+           | Some (lang, _) -> String_set.add lang acc)
+      in
+      Folder.ret acc
+    | _ -> Folder.default (* let the folder thread the fold *)
+  in
+  let folder = Folder.make ~block () in
+  let langs = Folder.fold_doc folder String_set.empty doc in
+  String_set.elements langs
+;;
+
+(*
 let rec proc path =
-  let open Omd_utils in
   let rec aux ~in_list b =
     match b with
     | Omd.Paragraph (_, Omd.Link (_, { destination; _ })) when in_list ->
@@ -196,6 +217,7 @@ let rec proc path =
     content
     []
 ;;
+*)
 
 (* Main monolith_of_file implementation *)
 let monolith_of_file ?(config = default_config) path =
