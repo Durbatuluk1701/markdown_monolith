@@ -26,40 +26,23 @@ let run
     ; omit_anchors
     }
   in
-  let read_input path =
-    if path = "-"
-    then
-      (* stdin is handled in monolith_of_file *)
-      Ok ""
-    else (
-      try
-        let ic = open_in path in
-        let s = really_input_string ic (in_channel_length ic) in
-        close_in ic;
-        Ok s
-      with
-      | e -> Error (Printexc.to_string e))
-  in
-  match read_input input with
-  | Error e -> `Error (false, "Error reading input: " ^ e)
-  | Ok _content ->
-    (match Monolith.monolith_of_file ~config:cfg input with
-     | Error e -> `Error (false, "monolith failed: " ^ e)
-     | Ok out ->
-       if force_inline then Printf.eprintf "Forcing inline\n";
-       if force_skip then Printf.eprintf "Force skip enabled\n";
-       (try
-          if output = "-"
-          then (
-            print_endline out;
-            `Ok ())
-          else (
-            let oc = open_out output in
-            output_string oc out;
-            close_out oc;
-            `Ok ())
-        with
-        | e -> `Error (false, Printexc.to_string e)))
+  match Monolith.monolith_of_file ~config:cfg input with
+  | Error e -> `Error (false, "monolith failed: " ^ e)
+  | Ok out ->
+    if force_inline then Printf.eprintf "Forcing inline\n";
+    if force_skip then Printf.eprintf "Force skip enabled\n";
+    (try
+       if output = "-"
+       then (
+         print_endline out;
+         `Ok ())
+       else (
+         let oc = open_out output in
+         output_string oc out;
+         close_out oc;
+         `Ok ())
+     with
+     | e -> `Error (false, Printexc.to_string e))
 ;;
 
 let input_t =

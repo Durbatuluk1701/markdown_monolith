@@ -46,31 +46,31 @@ let test_inlining () =
 let test_link_categorization () =
   (* Test local markdown file - should be ImportLink *)
   assert (
-    Monolith.categorize_link
+    Categorize.categorize_link
       ~follow_remote:false
       { destination = "intro.md"; label = "Intro" }
     = `ImportLink);
   (* Test anchor link - should be InternalRef *)
   assert (
-    Monolith.categorize_link
+    Categorize.categorize_link
       ~follow_remote:false
       { destination = "#section"; label = "Section" }
     = `InternalRef);
   (* Test remote URL without follow_remote - should be ExternalRef *)
   assert (
-    Monolith.categorize_link
+    Categorize.categorize_link
       ~follow_remote:false
       { destination = "https://example.com/doc.md"; label = "Doc" }
     = `ExternalRef);
   (* Test remote URL with follow_remote - should be ImportLink *)
   assert (
-    Monolith.categorize_link
+    Categorize.categorize_link
       ~follow_remote:true
       { destination = "https://example.com/doc.md"; label = "Doc" }
     = `ImportLink);
   (* Test non-markdown file - should be ExternalRef *)
   assert (
-    Monolith.categorize_link
+    Categorize.categorize_link
       ~follow_remote:false
       { destination = "image.png"; label = "Image" }
     = `ExternalRef);

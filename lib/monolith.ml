@@ -1,6 +1,6 @@
-(* Monolith implementation using Omd AST traversal. *)
+open Links
 
-open Omd
+(* Monolith implementation using Omd AST traversal. *)
 
 type config =
   { follow_remote : bool
@@ -22,27 +22,10 @@ let default_config =
   ; preserve_frontmatter = true
   ; score_threshold = 0.75
   ; min_links = 3
-  ; replace_links = false
+  ; replace_links = true
   ; omit_anchors = false
   }
 ;;
-
-type link =
-  { label : string
-  ; destination : string
-  }
-
-type link_type =
-  [ `ImportLink (** Links to be followed and inlined *)
-  | `InternalRef (** Anchor references within document *)
-  | `ExternalRef (** External URLs to keep as-is *)
-  ]
-
-(** Link categorization *)
-type categorized_link =
-  { ty : link_type
-  ; link : link
-  }
 
 (* Helper to generate slugs from heading text *)
 let slug_of_string s =
@@ -70,39 +53,9 @@ let slug_of_string s =
   if String.length out = 0 then "section" else out
 ;;
 
-(* Extract text from inline elements *)
-let rec text_of_inline = function
-  | Concat (_, il) -> List.map text_of_inline il |> String.concat ""
-  | Text (_, t) -> t
-  | Emph (_, il) | Strong (_, il) -> text_of_inline il
-  | Link (_, { label; _ }) | Image (_, { label; _ }) -> text_of_inline label
-  | Code (_, c) -> c
-  | Hard_break _ | Soft_break _ -> " "
-  | Html (_, h) -> h
-;;
-
-(* Extract all links from a block or list of blocks *)
-let rec extract_links_from_inline = function
-  | Link (_, { destination; label; _ }) ->
-    [ { label = text_of_inline label; destination } ]
-  | Concat (_, inlines) -> List.concat_map extract_links_from_inline inlines
-  | Emph (_, il) | Strong (_, il) -> extract_links_from_inline il
-  | Image (_, { label; _ }) -> extract_links_from_inline label
-  | _ -> []
-;;
-
-let rec extract_links_from_block = function
-  | Paragraph (_, inline) | Heading (_, _, inline) -> extract_links_from_inline inline
-  | List (_, _, _, items) ->
-    List.concat_map (fun blocks -> List.concat_map extract_links_from_block blocks) items
-  | Blockquote (_, blocks) -> List.concat_map extract_links_from_block blocks
-  | _ -> []
-;;
-
-let extract_all_links doc = List.concat_map extract_links_from_block doc
-
 (* Simple markdown renderer for output *)
 let to_markdown doc =
+  let open Omd in
   let rec inline_to_string = function
     | Text (_, t) -> t
     | Concat (_, inlines) -> List.map inline_to_string inlines |> String.concat ""
@@ -192,9 +145,10 @@ let to_markdown doc =
 let rewrite_headings_in_doc ~omit_anchors prefix doc =
   let counter = ref 0 in
   let heading_map = Hashtbl.create 16 in
+  let open Omd in
   let rec rewrite_block = function
     | Heading (attr, level, inline) ->
-      let text = text_of_inline inline in
+      let text = Omd_utils.text_of_inline inline in
       let slug = slug_of_string text in
       let new_id = Printf.sprintf "%s-%d-%s" prefix !counter slug in
       incr counter;
@@ -215,47 +169,6 @@ let rewrite_headings_in_doc ~omit_anchors prefix doc =
   rewritten, heading_map
 ;;
 
-(* Check if a destination is a remote URL *)
-let is_remote_url dest =
-  String.length dest >= 7
-  && (String.sub dest 0 7 = "http://"
-      || (String.length dest >= 8 && String.sub dest 0 8 = "https://"))
-;;
-
-(* Check if a destination is an anchor-only reference *)
-let is_anchor_only dest = dest <> "" && dest.[0] = '#'
-
-(* Categorize a link based on its destination and config *)
-let categorize_link ~follow_remote { destination; _ } =
-  if destination = ""
-  then `ExternalRef
-  else if is_anchor_only destination
-  then `InternalRef
-  else if is_remote_url destination
-  then if follow_remote then `ImportLink else `ExternalRef
-  else if
-    (* Local file path - check if it's a markdown file *)
-    Filename.check_suffix destination ".md"
-    || Filename.check_suffix destination ".markdown"
-  then `ImportLink
-  else `ExternalRef
-;;
-
-(* Extract and categorize all links from a document *)
-let categorize_links_in_doc ~follow_remote doc =
-  let links = extract_all_links doc in
-  List.map (fun link -> { ty = categorize_link ~follow_remote link; link }) links
-;;
-
-(* Filter links by type *)
-let get_import_links categorized =
-  List.filter_map
-    (function
-      | { ty = `ImportLink; link } -> Some (`ImportLink, link)
-      | _ -> None)
-    categorized
-;;
-
 (* Resolve a link target relative to a base directory *)
 let resolve_path base_dir target =
   if Filename.is_relative target then Filename.concat base_dir target else target
@@ -265,28 +178,6 @@ let resolve_path base_dir target =
 let monolith_of_file ?(config = default_config) path =
   let seen = Hashtbl.create 128 in
   let file_counter = ref 0 in
-  (* Read content from a path (supporting stdin via "-") *)
-  let read_content path =
-    if path = "-"
-    then (
-      (* Read from stdin *)
-      let buf = Buffer.create 4096 in
-      try
-        while true do
-          Buffer.add_channel buf stdin 4096
-        done;
-        assert false
-      with
-      | End_of_file -> Ok (Buffer.contents buf))
-    else (
-      try
-        let ic = open_in path in
-        let content = really_input_string ic (in_channel_length ic) in
-        close_in ic;
-        Ok content
-      with
-      | e -> Error (Printf.sprintf "Error reading %s: %s" path (Printexc.to_string e)))
-  in
   let rec inline_file ~depth path =
     if depth <= 0
     then Error "Maximum recursion depth reached"
@@ -294,11 +185,10 @@ let monolith_of_file ?(config = default_config) path =
     then Ok [] (* Already inlined, return empty *)
     else (
       if path <> "-" && config.dedupe then Hashtbl.add seen path ();
-      match read_content path with
+      match Omd_utils.read_content path with
       | Error e -> Error e
-      | Ok content ->
+      | Ok doc ->
         (try
-           let doc = Omd.of_string content in
            (* Rewrite headings if anchor adjustment is enabled *)
            let doc_rewritten, _heading_map =
              if config.adjust_anchors
@@ -310,14 +200,16 @@ let monolith_of_file ?(config = default_config) path =
            in
            (* Categorize links *)
            let categorized =
-             categorize_links_in_doc ~follow_remote:config.follow_remote doc_rewritten
+             Categorize.categorize_links_in_doc
+               ~follow_remote:config.follow_remote
+               doc_rewritten
            in
-           let import_links = get_import_links categorized in
+           let import_links = Categorize.get_import_links categorized in
            let base_dir = if path = "-" then Sys.getcwd () else Filename.dirname path in
            (* Process each import link and collect inlined content *)
            let link_to_content = Hashtbl.create 16 in
            List.iter
-             (fun (`ImportLink, { destination; _ }) ->
+             (fun { destination; _ } ->
                 let resolved = resolve_path base_dir destination in
                 match inline_file ~depth:(depth - 1) resolved with
                 | Ok subdoc -> Hashtbl.add link_to_content destination subdoc
@@ -326,7 +218,8 @@ let monolith_of_file ?(config = default_config) path =
            (* If replace_links is enabled, replace links in doc; otherwise append *)
            let final_doc =
              if config.replace_links
-             then (
+             then
+               let open Omd in
                (* Replace import links with their content *)
                let rec replace_in_block = function
                  | Paragraph (attr, inline) -> Paragraph (attr, replace_in_inline inline)
@@ -365,7 +258,7 @@ let monolith_of_file ?(config = default_config) path =
                let inlined_content =
                  Hashtbl.fold (fun _ subdoc acc -> subdoc @ acc) link_to_content []
                in
-               replaced_blocks @ inlined_content)
+               replaced_blocks @ inlined_content
              else (
                (* Append mode: just concatenate all content *)
                let inlined_content =
