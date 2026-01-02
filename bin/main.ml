@@ -6,8 +6,6 @@ let run
       follow_remote
       force_inline
       force_skip
-      score_threshold
-      min_links
       max_depth
       no_dedupe
       no_adjust_anchors
@@ -16,8 +14,6 @@ let run
   =
   let cfg =
     { Monolith.follow_remote
-    ; score_threshold
-    ; min_links
     ; max_depth
     ; dedupe = not no_dedupe
     ; adjust_anchors = not no_adjust_anchors
@@ -69,20 +65,6 @@ let force_inline_t =
 
 let force_skip_t = Arg.(value & flag & info [ "force-skip" ] ~doc:"Force skip inlining")
 
-let score_t =
-  Arg.(
-    value
-    & opt float 0.75
-    & info [ "score-threshold" ] ~doc:"Detection score threshold (default: 0.75)")
-;;
-
-let min_links_t =
-  Arg.(
-    value
-    & opt int 3
-    & info [ "min-links" ] ~doc:"Minimum links to consider as TOC (default: 3)")
-;;
-
 let max_depth_t =
   Arg.(
     value & opt int 10 & info [ "max-depth" ] ~doc:"Maximum recursion depth (default: 10)")
@@ -124,8 +106,6 @@ let cmd =
          $ follow_remote_t
          $ force_inline_t
          $ force_skip_t
-         $ score_t
-         $ min_links_t
          $ max_depth_t
          $ no_dedupe_t
          $ no_adjust_anchors_t

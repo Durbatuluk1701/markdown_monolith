@@ -8,8 +8,6 @@ type config =
   ; dedupe : bool
   ; adjust_anchors : bool
   ; preserve_frontmatter : bool
-  ; score_threshold : float
-  ; min_links : int
   ; replace_links : bool (* Replace import links with content instead of appending *)
   ; omit_anchors : bool (* Don't add {#slug} to headings *)
   }
@@ -20,8 +18,6 @@ let default_config =
   ; dedupe = true
   ; adjust_anchors = true
   ; preserve_frontmatter = true
-  ; score_threshold = 0.75
-  ; min_links = 3
   ; replace_links = true
   ; omit_anchors = false
   }
@@ -172,6 +168,33 @@ let rewrite_headings_in_doc ~omit_anchors prefix doc =
 (* Resolve a link target relative to a base directory *)
 let resolve_path base_dir target =
   if Filename.is_relative target then Filename.concat base_dir target else target
+;;
+
+(** [reconcile_path path dest] where [dest] should point to given we are currently at [path] *)
+let reconcile_path path dest =
+  let base_dir = if path = "-" then Sys.getcwd () else Filename.dirname path in
+  resolve_path base_dir dest
+;;
+
+let rec proc path =
+  let open Omd_utils in
+  let rec aux ~in_list b =
+    match b with
+    | Omd.Paragraph (_, Omd.Link (_, { destination; _ })) when in_list ->
+      true, proc (reconcile_path path destination)
+    | Omd.List (_, _, _, items) ->
+      let list_proc = List.map (List.map (aux ~in_list:true)) items |> List.flatten in
+      if List.for_all (fun (imported, _) -> imported) list_proc
+      then (* this is a list of imports *)
+        true, List.flatten (List.map snd list_proc)
+      else false, [ b ]
+    | _ -> false, [ b ]
+  in
+  let content = read_content path |> Result.get_ok in
+  List.fold_right
+    (fun next_block acc -> snd (aux ~in_list:false next_block) @ acc)
+    content
+    []
 ;;
 
 (* Main monolith_of_file implementation *)

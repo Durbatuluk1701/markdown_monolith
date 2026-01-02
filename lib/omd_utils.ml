@@ -33,29 +33,3 @@ let rec text_of_inline =
     | Hard_break _ | Soft_break _ -> " "
     | Html (_, h) -> h)
 ;;
-
-(* Extract all links from a block or list of blocks *)
-let rec extract_links_from_inline =
-  Omd.(
-    function
-    | Link (_, { destination; label; _ }) ->
-      [ Links.{ label = text_of_inline label; destination } ]
-    | Concat (_, inlines) -> List.concat_map extract_links_from_inline inlines
-    | Emph (_, il) | Strong (_, il) -> extract_links_from_inline il
-    | Image (_, { label; _ }) -> extract_links_from_inline label
-    | _ -> [])
-;;
-
-let rec extract_links_from_block =
-  Omd.(
-    function
-    | Paragraph (_, inline) | Heading (_, _, inline) -> extract_links_from_inline inline
-    | List (_, _, _, items) ->
-      List.concat_map
-        (fun blocks -> List.concat_map extract_links_from_block blocks)
-        items
-    | Blockquote (_, blocks) -> List.concat_map extract_links_from_block blocks
-    | _ -> [])
-;;
-
-let extract_all_links doc = List.concat_map extract_links_from_block doc

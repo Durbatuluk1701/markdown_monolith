@@ -4,8 +4,6 @@ type config =
   ; dedupe : bool
   ; adjust_anchors : bool
   ; preserve_frontmatter : bool
-  ; score_threshold : float
-  ; min_links : int
   ; replace_links : bool
   ; omit_anchors : bool
   }
