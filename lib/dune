@@ -1,16 +1,9 @@
 (library
- (name links)
- (modules links))
-
-(library
- (name categorize)
- (inline_tests)
- (preprocess
-  (pps ppx_expect))
- (libraries links cmarkit)
- (modules categorize))
+ (name fetch)
+ (libraries cohttp-lwt-unix lwt unix lwt_ssl)
+ (modules fetch))
 
 (library
  (name monolith)
- (libraries links categorize cmarkit cohttp-lwt-unix lwt unix)
+ (libraries cmarkit fetch)
  (modules monolith))

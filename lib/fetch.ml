@@ -1,56 +1,41 @@
-open Lwt.Infix
-open Cohttp_lwt_unix
+open Lwt
+open Cohttp
+open Printf
 
-let default_cache_dir () =
-  try Sys.getenv "XDG_CACHE_HOME" with
-  | _ -> Filename.concat (Sys.getenv "HOME") ".cache/markdown_monolith"
+let fetch_local_uri uri =
+  let path = Uri.path uri in
+  try
+    let ic = open_in path in
+    let content = really_input_string ic (in_channel_length ic) in
+    close_in ic;
+    Ok content
+  with
+  | Sys_error err -> Error (Printf.sprintf "Error reading local file %s: %s" path err)
 ;;
 
-let ensure_dir d =
-  if not (Sys.file_exists d)
-  then (
-    try Unix.mkdir d 0o755 with
-    | _ -> ())
-;;
-
-let sha s = Digest.to_hex (Digest.string s)
-let read_file_lwt path = Lwt_io.with_file ~mode:Lwt_io.Input path Lwt_io.read
-
-let write_file_lwt path body =
-  Lwt_io.with_file ~mode:Lwt_io.Output path (fun oc -> Lwt_io.write oc body)
-;;
-
-let fetch_uri_lwt ?cache_dir ?(use_cache = true) uri =
-  let cache_dir =
-    match cache_dir with
-    | Some d -> d
-    | None -> default_cache_dir ()
-  in
-  if use_cache then ensure_dir cache_dir;
-  let key = sha uri in
-  let cached = Filename.concat cache_dir key in
-  if use_cache && Sys.file_exists cached
-  then
-    Lwt.catch
-      (fun () -> read_file_lwt cached >|= fun s -> Ok s)
-      (fun e -> Lwt.return (Error (Printexc.to_string e)))
-  else (
-    let uri_parsed = Uri.of_string uri in
-    Client.get uri_parsed
+let fetch_uri_lwt ?(debug = false) uri =
+  match Uri.scheme uri with
+  | None ->
+    (* okay, probably local!? *)
+    printf "Error: URI %s has no scheme\n" (Uri.to_string uri);
+    Lwt.return (fetch_local_uri uri)
+  | Some "file" -> Lwt.return (fetch_local_uri uri)
+  | Some "http" | Some "https" ->
+    Cohttp_lwt_unix.Client.get uri
     >>= fun (resp, body) ->
-    let code = Cohttp.Response.status resp |> Cohttp.Code.code_of_status in
-    Cohttp_lwt.Body.to_string body
-    >>= fun body_str ->
+    let code = resp |> Response.status |> Code.code_of_status in
+    if debug then printf "Response code: %d\n" code;
+    if debug then printf "Headers: %s\n" (resp |> Response.headers |> Header.to_string);
+    body
+    |> Cohttp_lwt.Body.to_string
+    >|= fun body ->
+    if debug then printf "Body of length: %d\n" (String.length body);
     if code >= 200 && code < 300
-    then (
-      if use_cache
-      then (
-        try Lwt_main.run (write_file_lwt cached body_str) with
-        | _ -> ());
-      Lwt.return (Ok body_str))
-    else Lwt.return (Error (Printf.sprintf "HTTP %d" code)))
+    then Ok body
+    else Error (Printf.sprintf "HTTP %d: %s" code body)
+  | Some scheme ->
+    printf "Error: Unsupported URI scheme %s in URI %s\n" scheme (Uri.to_string uri);
+    Lwt.return (Error "Unsupported URI scheme")
 ;;
 
-let fetch_uri_sync ?cache_dir ?use_cache uri =
-  Lwt_main.run (fetch_uri_lwt ?cache_dir ?use_cache uri)
-;;
+let fetch_uri_sync ?(debug = false) uri = Lwt_main.run (fetch_uri_lwt ~debug uri)

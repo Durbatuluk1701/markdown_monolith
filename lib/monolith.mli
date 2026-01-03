@@ -16,4 +16,4 @@ val default_config : config
 
     If [filepath] is "-", reads from stdin.
     Returns [Ok output] or [Error msg]. *)
-val monolith_of_file : ?config:config -> string -> (string, string) result
+val monolith_of_file : ?config:config -> string -> (Cmarkit.Doc.t, string) result

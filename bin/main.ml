@@ -25,6 +25,7 @@ let run
   match Monolith.monolith_of_file ~config:cfg input with
   | Error e -> `Error (false, "monolith failed: " ^ e)
   | Ok out ->
+    let out = Cmarkit_commonmark.of_doc out in
     if force_inline then Printf.eprintf "Forcing inline\n";
     if force_skip then Printf.eprintf "Force skip enabled\n";
     (try
