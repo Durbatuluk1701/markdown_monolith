@@ -1,3 +1,2 @@
-(test
- (name test_markdown_monolith)
- (libraries monolith))
+(cram
+ (deps ../bin/markdown_monolith.exe))

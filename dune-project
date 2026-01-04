@@ -20,7 +20,7 @@
  (synopsis
   "Produce a single monolithic Markdown file by inlining linked files")
  (description
-  "OCaml library + CLI to produce a single monolithic Markdown file by parsing with omd, detecting navigational TOC-like link lists, and inlining selected files. Remote inlining is opt-in.")
+  "OCaml library + CLI to produce a single monolithic Markdown file by parsing with cmarkit, and inlining selected files. Remote inlining is opt-in.")
  (depends
   (ocaml
    (>= 4.14))

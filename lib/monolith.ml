@@ -22,15 +22,31 @@ let default_config =
   }
 ;;
 
+let numbered_prefix = Re.Str.regexp {|\([0-9]\(\.\)*\)+|}
+let bullet_prefix = Re.Str.regexp {|\(\*\|-\|\+\)|}
+
+(** [bullet_ish_prefix prefix] returns [true] if the prefix looks like a bullet point (i.e. *, -, +, some numbered bullet point 1.3, etc.). It returns [false] otherwise *)
+let bullet_ish_prefix prefix =
+  let prefix = String.trim prefix in
+  Re.Str.string_match numbered_prefix prefix 0
+  || Re.Str.string_match bullet_prefix prefix 0
+;;
+
+let pp_block block =
+  let open Cmarkit in
+  let doc = Doc.make block in
+  Cmarkit_commonmark.of_doc doc
+;;
+
 let resolve_path top_path next_path = Uri.resolve "" top_path next_path
 
 let rec monolithize_doc_internal ~top_path ~path =
   ignore top_path;
   let top_path = Uri.of_string "." in
-  printf "Monolithizing path: %s >> %s\n%!" (Uri.to_string top_path) (Uri.to_string path);
+  (* printf "Monolithizing path: %s >> %s\n%!" (Uri.to_string top_path) (Uri.to_string path); *)
   let open Cmarkit in
   let new_path = resolve_path top_path path in
-  printf "Monolithizing %s\n%!" (Uri.to_string new_path);
+  (* printf "Monolithizing %s\n%!" (Uri.to_string new_path); *)
   let file_str = Fetch.fetch_uri_sync new_path |> Result.get_ok' in
   let doc = Doc.of_string file_str in
   let process_definition link =
@@ -59,6 +75,11 @@ let rec monolithize_doc_internal ~top_path ~path =
     | Block.Paragraph (inls, _) when !in_list ->
       (* okay, we are in the list, then see a paragraph: try to check if its links *)
       (match Block.Paragraph.inline inls with
+       | Inline.Inlines ([ Inline.Text (prefix, _); Inline.Link (link, _) ], _)
+         when bullet_ish_prefix prefix ->
+         (* list > paragraph > link ==> process *)
+         incr converted_stack;
+         Mapper.ret (process_definition link)
        | Inline.Link (link, _) ->
          (* list > paragraph > link ==> process *)
          incr converted_stack;

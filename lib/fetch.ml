@@ -17,7 +17,7 @@ let fetch_uri_lwt ?(debug = false) uri =
   match Uri.scheme uri with
   | None ->
     (* okay, probably local!? *)
-    printf "Error: URI %s has no scheme\n" (Uri.to_string uri);
+    if debug then printf "Error: URI %s has no scheme\n" (Uri.to_string uri);
     Lwt.return (fetch_local_uri uri)
   | Some "file" -> Lwt.return (fetch_local_uri uri)
   | Some "http" | Some "https" ->
