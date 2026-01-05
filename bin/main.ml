@@ -1,70 +1,71 @@
 open Cmdliner
 
-let run
-      input
-      output
-      follow_remote
-      force_inline
-      force_skip
-      max_depth
-      no_dedupe
-      no_adjust_anchors
-      replace_links
-      omit_anchors
-  =
+(* eventually, want to let people input from *stdin*, but not today...
+let read_file file =
+  let read file ic =
+    try Ok (In_channel.input_all ic) with
+    | Sys_error e -> Error (Printf.sprintf "%s: %s" file e)
+  in
+  let binary_stdin () = In_channel.set_binary_mode In_channel.stdin true in
+  try
+    match file with
+    | "-" ->
+      binary_stdin ();
+      read file In_channel.stdin
+    | file -> In_channel.with_open_bin file (read file)
+  with
+  | Sys_error e -> Error e
+;;
+*)
+
+let write_file file s =
+  let write file s oc =
+    try `Ok (Out_channel.output_string oc s) with
+    | Sys_error e -> `Error (false, Printf.sprintf "%s: %s" file e)
+  in
+  let binary_stdout () = Out_channel.(set_binary_mode stdout true) in
+  try
+    match file with
+    | "-" ->
+      binary_stdout ();
+      write file s Out_channel.stdout
+    | file -> Out_channel.with_open_bin file (write file s)
+  with
+  | Sys_error e -> `Error (false, e)
+;;
+
+let run input output follow_remote max_depth no_dedupe strict_commonmark add_newlines =
   let cfg =
     { Monolith.follow_remote
     ; max_depth
     ; dedupe = not no_dedupe
-    ; adjust_anchors = not no_adjust_anchors
-    ; preserve_frontmatter = true
-    ; replace_links
-    ; omit_anchors
+    ; strict_commonmark
+    ; add_newlines
     }
   in
   match Monolith.monolith_of_file ~config:cfg input with
   | Error e -> `Error (false, "monolith failed: " ^ e)
   | Ok out ->
     let out = Cmarkit_commonmark.of_doc out in
-    if force_inline then Printf.eprintf "Forcing inline\n";
-    if force_skip then Printf.eprintf "Force skip enabled\n";
-    (try
-       if output = "-"
-       then (
-         print_endline out;
-         `Ok ())
-       else (
-         let oc = open_out output in
-         output_string oc out;
-         close_out oc;
-         `Ok ())
-     with
-     | e -> `Error (false, Printexc.to_string e))
+    write_file output out
 ;;
 
-let input_t =
-  Arg.(
-    value
-    & pos 0 string "-"
-    & info [] ~docv:"INPUT" ~doc:"Input markdown path (use '-' for stdin)")
+let infile =
+  let doc =
+    "$(docv) is the file to read from. (Note a remote file (i.e. \"https://...\" can be \
+     provided here as well.)"
+  in
+  Arg.(required & pos 0 (some string) None & info [] ~doc ~docv:"FILE")
 ;;
 
-let output_t =
-  Arg.(
-    value
-    & opt string "-"
-    & info [ "o"; "output" ] ~docv:"OUTPUT" ~doc:"Output path ('-' for stdout)")
+let outfile =
+  let doc = "$(docv) is the file to write to. Use $(b,-) for $(b,stdout)" in
+  Arg.(value & opt filepath "-" & info [ "o"; "output" ] ~doc ~docv:"FILE")
 ;;
 
 let follow_remote_t =
   Arg.(value & flag & info [ "follow-remote" ] ~doc:"Enable fetching remote links")
 ;;
-
-let force_inline_t =
-  Arg.(value & flag & info [ "force-inline" ] ~doc:"Force inline detected lists")
-;;
-
-let force_skip_t = Arg.(value & flag & info [ "force-skip" ] ~doc:"Force skip inlining")
 
 let max_depth_t =
   Arg.(
@@ -75,22 +76,16 @@ let no_dedupe_t =
   Arg.(value & flag & info [ "no-dedupe" ] ~doc:"Disable deduplication of files")
 ;;
 
-let no_adjust_anchors_t =
-  Arg.(value & flag & info [ "no-adjust-anchors" ] ~doc:"Disable anchor adjustment")
+let strict_commonmark_t =
+  Arg.(
+    value & flag & info [ "strict-commonmark" ] ~doc:"Enable strict CommonMark parsing")
 ;;
 
-let replace_links_t =
+let add_newlines_t =
   Arg.(
     value
-    & flag
-    & info
-        [ "replace-links" ]
-        ~doc:"Replace import links with content instead of appending")
-;;
-
-let omit_anchors_t =
-  Arg.(
-    value & flag & info [ "omit-anchors" ] ~doc:"Don't add {#slug} anchors to headings")
+    & opt bool true
+    & info [ "add-newlines" ] ~doc:"Add newlines between inlined content")
 ;;
 
 let cmd =
@@ -102,16 +97,13 @@ let cmd =
     Term.(
       ret
         (const run
-         $ input_t
-         $ output_t
+         $ infile
+         $ outfile
          $ follow_remote_t
-         $ force_inline_t
-         $ force_skip_t
          $ max_depth_t
          $ no_dedupe_t
-         $ no_adjust_anchors_t
-         $ replace_links_t
-         $ omit_anchors_t))
+         $ strict_commonmark_t
+         $ add_newlines_t))
 ;;
 
 let () = exit (Cmd.eval cmd)

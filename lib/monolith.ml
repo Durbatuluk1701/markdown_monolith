@@ -1,24 +1,19 @@
 open Printf
-(* Monolith implementation using Omd AST traversal. *)
 
 type config =
   { follow_remote : bool
   ; max_depth : int
   ; dedupe : bool
-  ; adjust_anchors : bool
-  ; preserve_frontmatter : bool
-  ; replace_links : bool (* Replace import links with content instead of appending *)
-  ; omit_anchors : bool (* Don't add {#slug} to headings *)
+  ; strict_commonmark : bool
+  ; add_newlines : bool (* Add newlines between inlined content *)
   }
 
 let default_config =
   { follow_remote = false
   ; max_depth = 10
   ; dedupe = true
-  ; adjust_anchors = true
-  ; preserve_frontmatter = true
-  ; replace_links = true
-  ; omit_anchors = false
+  ; strict_commonmark = false
+  ; add_newlines = true
   }
 ;;
 
@@ -40,7 +35,39 @@ let pp_block block =
 
 let resolve_path top_path next_path = Uri.resolve "" top_path next_path
 
-let rec monolithize_doc_internal ~top_path ~path =
+let get_first_header doc =
+  let open Cmarkit in
+  (match Doc.block doc with
+   | Block.Blocks (blocks, _) ->
+     (match blocks with
+      | Block.Heading (hding, _) :: _ -> hding
+      | _ -> raise Not_found)
+   | Block.Heading (hding, _) -> hding
+   | _ -> raise Not_found)
+  |> Block.Heading.inline
+  |> Inline.id
+;;
+
+module PathMap = Hashtbl.Make (struct
+    include Uri
+
+    let hash = Stdlib.Hashtbl.hash
+  end)
+
+let link_dest_uri doc link =
+  let open Cmarkit in
+  let dest = Inline.Link.reference_definition (Doc.defs doc) link in
+  match dest with
+  | None -> failwith (sprintf "What the heck happened")
+  | Some ld ->
+    (match ld with
+     | Link_definition.Def (link_def, _) ->
+       Link_definition.dest link_def |> Option.get |> fst |> Uri.of_string
+     | _ -> failwith "Cannot not be a link_definition")
+;;
+
+let rec monolithize_doc_internal ~config ~top_path ~path =
+  let strict = config.strict_commonmark in
   ignore top_path;
   let top_path = Uri.of_string "." in
   (* printf "Monolithizing path: %s >> %s\n%!" (Uri.to_string top_path) (Uri.to_string path); *)
@@ -48,28 +75,41 @@ let rec monolithize_doc_internal ~top_path ~path =
   let new_path = resolve_path top_path path in
   (* printf "Monolithizing %s\n%!" (Uri.to_string new_path); *)
   let file_str = Fetch.fetch_uri_sync new_path |> Result.get_ok' in
-  let doc = Doc.of_string file_str in
+  let doc = Doc.of_string ~strict file_str in
+  let top_header = get_first_header doc in
+  let path_header_map = PathMap.create 16 in
+  (* path_path_map translates paths to canonical paths *)
+  let path_path_map = PathMap.create 16 in
+  PathMap.add path_header_map new_path top_header;
+  PathMap.add path_path_map new_path new_path;
   let process_definition link =
     (* need to do something remote here *)
-    let dest = Inline.Link.reference_definition (Doc.defs doc) link in
-    match dest with
-    | None -> failwith (sprintf "What the heck happened")
-    | Some ld ->
-      (match ld with
-       | Link_definition.Def (link_def, _) ->
-         let dest_uri =
-           Link_definition.dest link_def |> Option.get |> fst |> Uri.of_string
-         in
-         let new_doc =
-           monolithize_doc_internal
-             ~top_path:new_path
-             ~path:(resolve_path new_path dest_uri)
-         in
-         Block.Blocks ([ Doc.block new_doc ], Meta.none)
-       | _ -> failwith "Cannot not be a link_definition")
+    let dest_uri = link_dest_uri doc link in
+    let rec_path_h_map, rec_path_p_map, new_doc =
+      monolithize_doc_internal
+        ~config
+        ~top_path:new_path
+        ~path:(resolve_path new_path dest_uri)
+    in
+    PathMap.add_seq path_header_map (PathMap.to_seq rec_path_h_map);
+    PathMap.add_seq path_path_map (PathMap.to_seq rec_path_p_map);
+    (* printf "Imported doc first header id: %s\n%!" hding_id; *)
+    if config.add_newlines
+    then (
+      let newline = Block.Blank_line ("", Meta.none) in
+      Block.Blocks ([ Doc.block new_doc; newline ], Meta.none))
+    else Block.Blocks ([ Doc.block new_doc ], Meta.none)
   in
   let in_list = ref false in
   let converted_stack = ref 0 in
+  let inline _m = function
+    | Inline.Link (link, _mta) ->
+      let orig_uri = link_dest_uri doc link in
+      let dest_uri = resolve_path new_path orig_uri in
+      PathMap.add path_path_map orig_uri dest_uri;
+      Mapper.default
+    | _ -> Mapper.default
+  in
   let block m b =
     match b with
     | Block.Paragraph (inls, _) when !in_list ->
@@ -101,15 +141,44 @@ let rec monolithize_doc_internal ~top_path ~path =
       else Mapper.default
     | _ -> Mapper.default
   in
-  let mapper = Mapper.make ~block () in
+  let mapper = Mapper.make ~inline ~block () in
+  path_header_map, path_path_map, Mapper.map_doc mapper doc
+;;
+
+let reconcile_pathes path_header_map path_path_map doc =
+  let open Cmarkit in
+  let inline _m = function
+    | Inline.Link (link, mta) ->
+      let dest_uri = link_dest_uri doc link in
+      let dest_uri = resolve_path (Uri.of_string ".") dest_uri in
+      (* first, find the link in the path_path_map *)
+      let dest_uri = PathMap.find path_path_map dest_uri in
+      (* if the link is in the path-map, convert it *)
+      (match PathMap.find_opt path_header_map dest_uri with
+       | None -> (* default, must not've been mapped *) Mapper.default
+       | Some new_path ->
+         let open Inline in
+         (* the new path is a reference to a header *)
+         let new_path = "#" ^ new_path in
+         let link_ref : Link.reference =
+           `Inline (Link_definition.make ~dest:(new_path, Meta.none) (), Meta.none)
+         in
+         let new_link : Link.t = Link.make (Link.text link) link_ref in
+         Mapper.ret (Link (new_link, mta)))
+    | _ -> Mapper.default
+  in
+  let mapper = Mapper.make ~inline () in
   Mapper.map_doc mapper doc
 ;;
 
 let monolith_of_file ?(config = default_config) path =
   let top_path = Uri.of_string "." in
   let path = Uri.of_string path in
-  (* TODO: use the config *)
-  ignore config;
+  let path_header_map, path_path_map, doc =
+    monolithize_doc_internal ~config ~top_path ~path
+  in
+  (* now, we reconcile the pathes if they have been re-mapped *)
+  let doc = reconcile_pathes path_header_map path_path_map doc in
   (* TODO: Actually use result type to propagate errors!! *)
-  Ok (monolithize_doc_internal ~top_path ~path)
+  Ok doc
 ;;

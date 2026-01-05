@@ -2,10 +2,8 @@ type config =
   { follow_remote : bool
   ; max_depth : int
   ; dedupe : bool
-  ; adjust_anchors : bool
-  ; preserve_frontmatter : bool
-  ; replace_links : bool
-  ; omit_anchors : bool
+  ; strict_commonmark : bool
+  ; add_newlines : bool
   }
 
 val default_config : config
