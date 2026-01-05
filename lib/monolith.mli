@@ -1,8 +1,7 @@
 type config =
   { follow_remote : bool
     (** If [true], follow and inline remote links (i.e. HTTP/HTTPS). Be cautious when enabling this option as it may lead to security risks or excessive network usage. (NOTE!!! This is not fully implemented yet) *)
-  ; max_depth : int
-    (** Maximum depth for inlining files. (NOTE!!! This is not fully implemented yet) *)
+  ; max_depth : int (** Maximum depth for inlining files. *)
   ; dedupe : bool
     (** If [true], do not inline the same file more than once. (NOTE!!! This is not fully implemented yet) *)
   ; strict_commonmark : bool (** If [true], enforce strict CommonMark parsing rules. *)
