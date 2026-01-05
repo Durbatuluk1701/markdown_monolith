@@ -1,2 +1,5 @@
 (cram
- (deps ../bin/markdown_monolith.exe))
+ (applies_to :whole_subtree)
+ (deps
+  %{bin:markdown_monolith}
+  (glob_files *.md)))
