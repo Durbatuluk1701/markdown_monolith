@@ -2,8 +2,7 @@ type config =
   { allow_remote : bool
     (** If [true], follow and inline remote links (i.e. HTTP/HTTPS). Be cautious when enabling this option as it may lead to security risks or excessive network usage. *)
   ; max_depth : int (** Maximum depth for inlining files. *)
-  ; dedupe : bool
-    (** If [true], do not inline the same file more than once. (NOTE!!! This is not fully implemented yet) *)
+  ; dedupe : bool (** If [true], do not inline the same file more than once. *)
   ; strict_commonmark : bool (** If [true], enforce strict CommonMark parsing rules. *)
   ; add_newlines : bool (** If [true], add newlines between inlined content. *)
   }

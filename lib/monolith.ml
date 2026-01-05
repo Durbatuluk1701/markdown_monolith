@@ -5,8 +5,7 @@ type config =
   { allow_remote : bool
     (** If [true], follow and inline remote links (i.e. HTTP/HTTPS). Be cautious when enabling this option as it may lead to security risks or excessive network usage. *)
   ; max_depth : int (** Maximum depth for inlining files. *)
-  ; dedupe : bool
-    (** If [true], do not inline the same file more than once. (NOTE!!! This is not fully implemented yet) *)
+  ; dedupe : bool (** If [true], do not inline the same file more than once. *)
   ; strict_commonmark : bool (** If [true], enforce strict CommonMark parsing rules. *)
   ; add_newlines : bool (** If [true], add newlines between inlined content. *)
   }
@@ -70,7 +69,7 @@ let link_dest_uri doc link =
 let monolithize_doc_internal
       ~path_header_map
       ~path_path_map
-      ~config:{ strict_commonmark; add_newlines; max_depth; allow_remote; _ }
+      ~config:{ strict_commonmark; add_newlines; max_depth; allow_remote; dedupe }
       ~path
   =
   let rec aux ~depth ~path =
@@ -88,13 +87,22 @@ let monolithize_doc_internal
     let process_definition link =
       (* need to do something remote here *)
       let dest_uri = link_dest_uri doc link in
-      let new_doc = aux ~depth:(depth + 1) ~path:(resolve_path path dest_uri) in
-      (* printf "Imported doc first header id: %s\n%!" hding_id; *)
-      if add_newlines
+      let path = resolve_path path dest_uri in
+      if dedupe && PathMap.mem path_header_map path
       then (
-        let newline = Block.Blank_line ("", Meta.none) in
-        Block.Blocks ([ Doc.block new_doc; newline ], Meta.none))
-      else Block.Blocks ([ Doc.block new_doc ], Meta.none)
+        (* already inlined, skip *)
+        let ref_text = Inline.Text ("Duplicate Reference to: ", Meta.none) in
+        let reference_link = Inline.Link (link, Meta.none) in
+        let inlines = Inline.Inlines ([ ref_text; reference_link ], Meta.none) in
+        Block.Paragraph (Block.Paragraph.make inlines, Meta.none))
+      else (
+        let new_doc = aux ~depth:(depth + 1) ~path in
+        (* printf "Imported doc first header id: %s\n%!" hding_id; *)
+        if add_newlines
+        then (
+          let newline = Block.Blank_line ("", Meta.none) in
+          Block.Blocks ([ Doc.block new_doc; newline ], Meta.none))
+        else Block.Blocks ([ Doc.block new_doc ], Meta.none))
     in
     let in_list = ref false in
     let converted_stack = ref 0 in

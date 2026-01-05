@@ -34,10 +34,9 @@ let write_file file s =
   | Sys_error e -> `Error (false, e)
 ;;
 
-let run input output allow_remote max_depth no_dedupe strict_commonmark add_newlines =
+let run input output allow_remote max_depth dedupe strict_commonmark add_newlines =
   let cfg =
-    Monolith.
-      { allow_remote; max_depth; dedupe = not no_dedupe; strict_commonmark; add_newlines }
+    Monolith.{ allow_remote; max_depth; dedupe; strict_commonmark; add_newlines }
   in
   match Monolith.monolith_of_file ~config:cfg input with
   | Error e -> `Error (false, "monolith failed: " ^ e)
@@ -49,7 +48,7 @@ let run input output allow_remote max_depth no_dedupe strict_commonmark add_newl
 let infile =
   let doc =
     "$(docv) is the file to read from. (Note a remote file (i.e. \"https://...\" can be \
-     provided here as well.)"
+     provided here as well assuming `--allow-remote` is enabled.)"
   in
   Arg.(required & pos 0 (some string) None & info [] ~doc ~docv:"FILE")
 ;;
@@ -68,8 +67,8 @@ let max_depth_t =
     value & opt int 10 & info [ "max-depth" ] ~doc:"Maximum recursion depth (default: 10)")
 ;;
 
-let no_dedupe_t =
-  Arg.(value & flag & info [ "no-dedupe" ] ~doc:"Disable deduplication of files")
+let dedupe_t =
+  Arg.(value & opt bool true & info [ "dedupe" ] ~doc:"Enable deduplication of files")
 ;;
 
 let strict_commonmark_t =
@@ -97,7 +96,7 @@ let cmd =
          $ outfile
          $ allow_remote_t
          $ max_depth_t
-         $ no_dedupe_t
+         $ dedupe_t
          $ strict_commonmark_t
          $ add_newlines_t))
 ;;
