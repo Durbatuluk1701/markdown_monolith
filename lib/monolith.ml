@@ -2,10 +2,13 @@ open Printf
 
 type config =
   { follow_remote : bool
+    (** If [true], follow and inline remote links (i.e. HTTP/HTTPS). Be cautious when enabling this option as it may lead to security risks or excessive network usage. (NOTE!!! This is not fully implemented yet) *)
   ; max_depth : int
+    (** Maximum depth for inlining files. (NOTE!!! This is not fully implemented yet) *)
   ; dedupe : bool
-  ; strict_commonmark : bool
-  ; add_newlines : bool (* Add newlines between inlined content *)
+    (** If [true], do not inline the same file more than once. (NOTE!!! This is not fully implemented yet) *)
+  ; strict_commonmark : bool (** If [true], enforce strict CommonMark parsing rules. *)
+  ; add_newlines : bool (** If [true], add newlines between inlined content. *)
   }
 
 let default_config =
@@ -17,8 +20,8 @@ let default_config =
   }
 ;;
 
-let numbered_prefix = Re.Str.regexp {|\([0-9]\(\.\)*\)+|}
-let bullet_prefix = Re.Str.regexp {|\(\*\|-\|\+\)|}
+let numbered_prefix = Re.Str.regexp {|^\([0-9]\(\.\|)\)*\)+$|}
+let bullet_prefix = Re.Str.regexp {|^\(\*\|-\|\+\)$|}
 
 (** [bullet_ish_prefix prefix] returns [true] if the prefix looks like a bullet point (i.e. *, -, +, some numbered bullet point 1.3, etc.). It returns [false] otherwise *)
 let bullet_ish_prefix prefix =

@@ -1,6 +1,6 @@
 (library
  (name fetch)
- (libraries cohttp-lwt-unix lwt unix lwt_ssl)
+ (libraries cohttp-lwt-unix lwt_ssl)
  (modules fetch))
 
 (library

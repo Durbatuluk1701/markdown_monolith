@@ -3,3 +3,7 @@
  (deps
   %{bin:markdown_monolith}
   (glob_files *.md)))
+
+(test
+ (name test_bullet_ish_prefix)
+ (libraries ounit2 monolith))

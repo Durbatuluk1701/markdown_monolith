@@ -1,9 +1,12 @@
 type config =
   { follow_remote : bool
+    (** If [true], follow and inline remote links (i.e. HTTP/HTTPS). Be cautious when enabling this option as it may lead to security risks or excessive network usage. (NOTE!!! This is not fully implemented yet) *)
   ; max_depth : int
+    (** Maximum depth for inlining files. (NOTE!!! This is not fully implemented yet) *)
   ; dedupe : bool
-  ; strict_commonmark : bool
-  ; add_newlines : bool
+    (** If [true], do not inline the same file more than once. (NOTE!!! This is not fully implemented yet) *)
+  ; strict_commonmark : bool (** If [true], enforce strict CommonMark parsing rules. *)
+  ; add_newlines : bool (** If [true], add newlines between inlined content. *)
   }
 
 val default_config : config
@@ -15,8 +18,5 @@ val pp_block : Cmarkit.Block.t -> string
 
 (** [monolith_of_file ?config filepath] 
     produces a monolithic markdown string from 
-    interpreting the markdown at [filepath] with the given [config].
-
-    If [filepath] is "-", reads from stdin.
-    Returns [Ok output] or [Error msg]. *)
+    interpreting the markdown at [filepath] with the given [config]. *)
 val monolith_of_file : ?config:config -> string -> (Cmarkit.Doc.t, string) result
