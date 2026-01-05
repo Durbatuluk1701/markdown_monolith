@@ -2,10 +2,9 @@ open Printf
 open Cmarkit
 
 type config =
-  { follow_remote : bool
-    (** If [true], follow and inline remote links (i.e. HTTP/HTTPS). Be cautious when enabling this option as it may lead to security risks or excessive network usage. (NOTE!!! This is not fully implemented yet) *)
-  ; max_depth : int
-    (** Maximum depth for inlining files. (NOTE!!! This is not fully implemented yet) *)
+  { allow_remote : bool
+    (** If [true], follow and inline remote links (i.e. HTTP/HTTPS). Be cautious when enabling this option as it may lead to security risks or excessive network usage. *)
+  ; max_depth : int (** Maximum depth for inlining files. *)
   ; dedupe : bool
     (** If [true], do not inline the same file more than once. (NOTE!!! This is not fully implemented yet) *)
   ; strict_commonmark : bool (** If [true], enforce strict CommonMark parsing rules. *)
@@ -13,7 +12,7 @@ type config =
   }
 
 let default_config =
-  { follow_remote = false
+  { allow_remote = false
   ; max_depth = 10
   ; dedupe = true
   ; strict_commonmark = false
@@ -71,7 +70,7 @@ let link_dest_uri doc link =
 let monolithize_doc_internal
       ~path_header_map
       ~path_path_map
-      ~config:{ strict_commonmark; add_newlines; max_depth; _ }
+      ~config:{ strict_commonmark; add_newlines; max_depth; allow_remote; _ }
       ~path
   =
   let rec aux ~depth ~path =
@@ -81,7 +80,7 @@ let monolithize_doc_internal
         (sprintf "Maximum depth %d exceeded at path %s" max_depth (Uri.to_string path));
     (* TODO: Need to pre-validate ~path to make sure it is an actual foreign link (not #<header>) *)
     (* printf "Monolithizing %s\n%!" (Uri.to_string path); *)
-    let file_str = Fetch.fetch_uri_sync path |> Result.get_ok' in
+    let file_str = Fetch.fetch_uri_sync ~allow_remote path |> Result.get_ok' in
     let doc = Doc.of_string ~strict:strict_commonmark file_str in
     let top_header = get_first_header doc in
     PathMap.add path_header_map path top_header;

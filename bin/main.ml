@@ -34,14 +34,10 @@ let write_file file s =
   | Sys_error e -> `Error (false, e)
 ;;
 
-let run input output follow_remote max_depth no_dedupe strict_commonmark add_newlines =
+let run input output allow_remote max_depth no_dedupe strict_commonmark add_newlines =
   let cfg =
-    { Monolith.follow_remote
-    ; max_depth
-    ; dedupe = not no_dedupe
-    ; strict_commonmark
-    ; add_newlines
-    }
+    Monolith.
+      { allow_remote; max_depth; dedupe = not no_dedupe; strict_commonmark; add_newlines }
   in
   match Monolith.monolith_of_file ~config:cfg input with
   | Error e -> `Error (false, "monolith failed: " ^ e)
@@ -63,8 +59,8 @@ let outfile =
   Arg.(value & opt filepath "-" & info [ "o"; "output" ] ~doc ~docv:"FILE")
 ;;
 
-let follow_remote_t =
-  Arg.(value & flag & info [ "follow-remote" ] ~doc:"Enable fetching remote links")
+let allow_remote_t =
+  Arg.(value & flag & info [ "allow-remote" ] ~doc:"Enable fetching remote links")
 ;;
 
 let max_depth_t =
@@ -99,7 +95,7 @@ let cmd =
         (const run
          $ infile
          $ outfile
-         $ follow_remote_t
+         $ allow_remote_t
          $ max_depth_t
          $ no_dedupe_t
          $ strict_commonmark_t
