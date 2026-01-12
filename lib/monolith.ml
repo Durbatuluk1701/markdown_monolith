@@ -20,7 +20,7 @@ let default_config =
 ;;
 
 let numbered_prefix = Re.Str.regexp {|^\([0-9]\(\.\|)\)*\)+$|}
-let bullet_prefix = Re.Str.regexp {|^\(\*\|-\|\+\)$|}
+let bullet_prefix = Re.Str.regexp {|^\(\*+\|-+\|\++\)$|}
 
 (** [bullet_ish_prefix prefix] returns [true] if the prefix looks like a bullet point (i.e. *, -, +, some numbered bullet point 1.3, etc.). It returns [false] otherwise *)
 let bullet_ish_prefix prefix =

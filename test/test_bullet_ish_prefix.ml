@@ -2,11 +2,20 @@ open OUnit2
 
 let cases =
   [ "star", "*", true
+  ; "star-star", "**", true
   ; "star-space", "* ", true
+  ; "space-star", " *", true
+  ; "star-star-space", "** ", true
   ; "dash", "-", true
+  ; "dash-dash", "--", true
+  ; "space-dash", " -", true
   ; "dash-space", "- ", true
+  ; "dash-dash-space", "-- ", true
   ; "plus", "+", true
+  ; "plus-plus", "++", true
+  ; "space-plus", " +", true
   ; "plus-space", "+ ", true
+  ; "plus-plus-space", "++ ", true
   ; "num-dot", "1.", true
   ; "num-paren", "1)", true
   ; "num-dot-space", "1. ", true
