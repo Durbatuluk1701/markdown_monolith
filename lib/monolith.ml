@@ -78,7 +78,11 @@ let monolithize_doc_internal
       failwith
         (sprintf "Maximum depth %d exceeded at path %s" max_depth (Uri.to_string path));
     (* TODO: Need to pre-validate ~path to make sure it is an actual foreign link (not #<header>) *)
-    let file_str = Fetch.fetch_uri_sync ~allow_remote path |> Result.get_ok' in
+    let file_str =
+      match Fetch.fetch_uri_sync ~allow_remote path with
+      | Ok s -> s
+      | Error err -> failwith (sprintf "Error fetching %s: %s" (Uri.to_string path) err)
+    in
     let doc = Doc.of_string ~strict:strict_commonmark file_str in
     let top_header = get_first_header doc in
     PathMap.add path_header_map path top_header;
