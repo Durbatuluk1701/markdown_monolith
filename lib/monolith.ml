@@ -29,7 +29,7 @@ let bullet_ish_prefix prefix =
   || Re.Str.string_match bullet_prefix prefix 0
 ;;
 
-let pp_block block =
+let _pp_block block =
   let open Cmarkit in
   let doc = Doc.make block in
   Cmarkit_commonmark.of_doc doc
