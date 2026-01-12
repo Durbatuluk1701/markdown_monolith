@@ -78,7 +78,6 @@ let monolithize_doc_internal
       failwith
         (sprintf "Maximum depth %d exceeded at path %s" max_depth (Uri.to_string path));
     (* TODO: Need to pre-validate ~path to make sure it is an actual foreign link (not #<header>) *)
-    (* printf "Monolithizing %s\n%!" (Uri.to_string path); *)
     let file_str = Fetch.fetch_uri_sync ~allow_remote path |> Result.get_ok' in
     let doc = Doc.of_string ~strict:strict_commonmark file_str in
     let top_header = get_first_header doc in
@@ -97,7 +96,6 @@ let monolithize_doc_internal
         Block.Paragraph (Block.Paragraph.make inlines, Meta.none))
       else (
         let new_doc = aux ~depth:(depth + 1) ~path in
-        (* printf "Imported doc first header id: %s\n%!" hding_id; *)
         if add_newlines
         then (
           let newline = Block.Blank_line ("", Meta.none) in

@@ -1,9 +1,11 @@
 (library
  (name fetch)
+ (public_name markdown_monolith.fetch)
  (libraries cohttp-lwt-unix lwt_ssl)
  (modules fetch))
 
 (library
  (name monolith)
+ (public_name markdown_monolith)
  (libraries cmarkit fetch)
  (modules monolith))
