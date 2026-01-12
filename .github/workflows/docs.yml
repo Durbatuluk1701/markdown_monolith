@@ -29,8 +29,6 @@ jobs:
         with:
           ocaml-compiler: 4.14.x
           dune-cache: true
-          opam-depext: true
-          opam-depext-flags: --with-doc
 
       - name: Install system dependencies
         run: |

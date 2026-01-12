@@ -13,6 +13,8 @@
 
 (license MIT)
 
+(version 0.1.0)
+
 (documentation https://durbatuluk1701.github.io/markdown_monolith/)
 
 (package

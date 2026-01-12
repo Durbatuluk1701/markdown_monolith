@@ -28,7 +28,6 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
           dune-cache: true
-          opam-depext: true
 
       - name: Install system dependencies
         run: |
