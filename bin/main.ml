@@ -37,7 +37,7 @@ let run
       }
   in
   match Monolith.monolith_of_file ~config:cfg input with
-  | Error e -> `Error (false, "monolith failed: " ^ e)
+  | Error e -> `Error (false, "monolith-ification failed: " ^ e)
   | Ok out ->
     let out = Cmarkit_commonmark.of_doc out in
     write_file output out
