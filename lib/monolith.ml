@@ -8,6 +8,8 @@ type config =
   ; dedupe : bool (** If [true], do not inline the same file more than once. *)
   ; strict_commonmark : bool (** If [true], enforce strict CommonMark parsing rules. *)
   ; add_newlines : bool (** If [true], add newlines between inlined content. *)
+  ; force_reconciliation : bool
+    (** If [true], force link reconciliation even if no header is found in the inlined document. *)
   }
 
 let default_config =
@@ -16,6 +18,7 @@ let default_config =
   ; dedupe = true
   ; strict_commonmark = false
   ; add_newlines = true
+  ; force_reconciliation = false
   }
 ;;
 
@@ -64,7 +67,14 @@ let link_dest_uri doc link =
 let monolithize_doc_internal
       ~path_header_map
       ~path_path_map
-      ~config:{ strict_commonmark; add_newlines; max_depth; allow_remote; dedupe }
+      ~config:
+        { strict_commonmark
+        ; add_newlines
+        ; max_depth
+        ; allow_remote
+        ; dedupe
+        ; force_reconciliation
+        }
       ~path
   =
   let exception Bad_case of string in
@@ -82,10 +92,14 @@ let monolithize_doc_internal
         (match get_first_header doc with
          | None ->
            (* Print a warning, but proceed - links may be broken *)
-           eprintf
-             "Warning: No header found in document at path %s. Inlining will proceed \
-              without link reconciliation.\n"
-             (Uri.to_string path)
+           let msg =
+             sprintf
+               "Warning: No header found in document at path %s."
+               (Uri.to_string path)
+           in
+           if force_reconciliation
+           then raise (Bad_case msg)
+           else eprintf "%s Inlining will proceed without link reconciliation.\n" msg
            (* use the path as the header *)
          | Some top_header -> PathMap.add path_header_map path top_header);
         PathMap.add path_path_map path path;

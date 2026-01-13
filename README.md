@@ -38,16 +38,6 @@ dune build @doc
 markdown_monolith input.md -o output.md
 ```
 
-### CLI Options
-
-- `INPUT`: Input markdown file path (required)
-- `-o, --output OUTPUT`: Output path (default: stdout)
-- `--allow-remote`: Enable fetching remote HTTP/HTTPS links (default: off, security-sensitive)
-- `--max-depth INT`: Maximum recursion depth for inlining (default: 10)
-- `--dedupe BOOL`: Enable/disable deduplication of files (default: true)
-- `--strict-commonmark`: Enforce strict CommonMark parsing rules
-- `--add-newlines BOOL`: Add blank lines between inlined content (default: true)
-
 ### Examples
 
 **Basic inlining:**
@@ -92,7 +82,6 @@ match Monolith.monolith_of_file ~config "input.md" with
 ### Key Functions
 
 - `monolith_of_file`: Main function to process a markdown file into a monolithic document
-- `bullet_ish_prefix`: Utility to check if a string looks like a list item prefix
 
 See the [full API documentation](https://durbatuluk1701.github.io/markdown_monolith/markdown_monolith/Monolith/) for complete details.
 

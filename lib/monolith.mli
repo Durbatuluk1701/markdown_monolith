@@ -141,6 +141,18 @@ type config =
         {b Recommendation}: Keep enabled for better readability of the generated 
         monolithic document.
     *)
+  ; force_reconciliation : bool
+    (** If [true], force link reconciliation and if no header is found to reconcile against, fail. Otherwise, if [false], print a warning and proceed without reconciliation.
+    
+        {b Default}: [false]
+        
+        {b Behavior}: When enabled, documents that lack a top-level header will cause
+        the processing to fail with an error during inlining. When disabled, a 
+        warning is printed to stderr, and the inlining proceeds without link 
+        reconciliation.
+
+        {b Recommendation}: Enable this option only if consistent link reconciliation is critical for your use case and you want to enforce that all inlined documents have proper headers.
+        *)
   }
 
 (** The default configuration with safe, conservative settings.
@@ -151,6 +163,7 @@ type config =
     - [dedupe = true] — Prevent infinite loops
     - [strict_commonmark = false] — Accept common Markdown extensions
     - [add_newlines = true] — Better visual separation
+    - [force_reconciliation = false] — Do not force link reconciliation
 
     @since 0.1.0
 *)

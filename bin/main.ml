@@ -16,9 +16,25 @@ let write_file file s =
   | Sys_error e -> `Error (false, e)
 ;;
 
-let run input output allow_remote max_depth dedupe strict_commonmark add_newlines =
+let run
+      input
+      output
+      allow_remote
+      max_depth
+      dedupe
+      strict_commonmark
+      add_newlines
+      force_reconciliation
+  =
   let cfg =
-    Monolith.{ allow_remote; max_depth; dedupe; strict_commonmark; add_newlines }
+    Monolith.
+      { allow_remote
+      ; max_depth
+      ; dedupe
+      ; strict_commonmark
+      ; add_newlines
+      ; force_reconciliation
+      }
   in
   match Monolith.monolith_of_file ~config:cfg input with
   | Error e -> `Error (false, "monolith failed: " ^ e)
@@ -65,6 +81,15 @@ let add_newlines_t =
     & info [ "add-newlines" ] ~doc:"Add newlines between inlined content")
 ;;
 
+let force_reconciliation_t =
+  Arg.(
+    value
+    & flag
+    & info
+        [ "force-reconciliation" ]
+        ~doc:"Force link reconciliation; error if headers missing")
+;;
+
 let cmd =
   Cmd.v
     (Cmd.info
@@ -79,7 +104,8 @@ let cmd =
          $ max_depth_t
          $ dedupe_t
          $ strict_commonmark_t
-         $ add_newlines_t))
+         $ add_newlines_t
+         $ force_reconciliation_t))
 ;;
 
 let () = exit (Cmd.eval cmd)
