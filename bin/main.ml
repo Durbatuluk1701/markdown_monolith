@@ -1,23 +1,5 @@
 open Cmdliner
 
-(* eventually, want to let people input from *stdin*, but not today...
-let read_file file =
-  let read file ic =
-    try Ok (In_channel.input_all ic) with
-    | Sys_error e -> Error (Printf.sprintf "%s: %s" file e)
-  in
-  let binary_stdin () = In_channel.set_binary_mode In_channel.stdin true in
-  try
-    match file with
-    | "-" ->
-      binary_stdin ();
-      read file In_channel.stdin
-    | file -> In_channel.with_open_bin file (read file)
-  with
-  | Sys_error e -> Error e
-;;
-*)
-
 let write_file file s =
   let write file s oc =
     try `Ok (Out_channel.output_string oc s) with
@@ -87,7 +69,6 @@ let cmd =
   Cmd.v
     (Cmd.info
        "markdown_monolith"
-       ~version:"0.1"
        ~doc:"Produce a monolithic Markdown file by inlining linked files.")
     Term.(
       ret

@@ -44,9 +44,9 @@ markdown_monolith input.md -o output.md
 - `-o, --output OUTPUT`: Output path (default: stdout)
 - `--allow-remote`: Enable fetching remote HTTP/HTTPS links (default: off, security-sensitive)
 - `--max-depth INT`: Maximum recursion depth for inlining (default: 10)
-- `--no-dedupe`: Allow the same file to be inlined multiple times (default: dedupe enabled)
+- `--dedupe BOOL`: Enable/disable deduplication of files (default: true)
 - `--strict-commonmark`: Enforce strict CommonMark parsing rules
-- `--no-newlines`: Don't add blank lines between inlined content
+- `--add-newlines BOOL`: Add blank lines between inlined content (default: true)
 
 ### Examples
 

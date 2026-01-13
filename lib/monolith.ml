@@ -29,24 +29,17 @@ let bullet_ish_prefix prefix =
   || Re.Str.string_match bullet_prefix prefix 0
 ;;
 
-let _pp_block block =
-  let open Cmarkit in
-  let doc = Doc.make block in
-  Cmarkit_commonmark.of_doc doc
-;;
-
 let resolve_path top_path next_path = Uri.resolve "" top_path next_path
 
 let get_first_header doc =
-  (match Doc.block doc with
-   | Block.Blocks (blocks, _) ->
-     (match blocks with
-      | Block.Heading (hding, _) :: _ -> hding
-      | _ -> raise Not_found)
-   | Block.Heading (hding, _) -> hding
-   | _ -> raise Not_found)
-  |> Block.Heading.inline
-  |> Inline.id
+  let get_inline_id hding = Block.Heading.inline hding |> Inline.id in
+  match Doc.block doc with
+  | Block.Blocks (blocks, _) ->
+    (match blocks with
+     | Block.Heading (hding, _) :: _ -> Some (get_inline_id hding)
+     | _ -> None)
+  | Block.Heading (hding, _) -> Some (get_inline_id hding)
+  | _ -> None
 ;;
 
 module PathMap = Hashtbl.Make (struct
@@ -58,12 +51,14 @@ module PathMap = Hashtbl.Make (struct
 let link_dest_uri doc link =
   let dest = Inline.Link.reference_definition (Doc.defs doc) link in
   match dest with
-  | None -> failwith (sprintf "What the heck happened")
+  | None -> Error "Link has no reference definition"
   | Some ld ->
     (match ld with
      | Link_definition.Def (link_def, _) ->
-       Link_definition.dest link_def |> Option.get |> fst |> Uri.of_string
-     | _ -> failwith "Cannot not be a link_definition")
+       (match Link_definition.dest link_def with
+        | Some (dest_str, _) -> Ok (Uri.of_string dest_str)
+        | None -> Error "Link definition has no destination")
+     | _ -> Error "Expected a link definition but found a different reference type")
 ;;
 
 let monolithize_doc_internal
@@ -72,106 +67,126 @@ let monolithize_doc_internal
       ~config:{ strict_commonmark; add_newlines; max_depth; allow_remote; dedupe }
       ~path
   =
+  let exception Bad_case of string in
   let rec aux ~depth ~path =
     if depth > max_depth
     then
-      failwith
-        (sprintf "Maximum depth %d exceeded at path %s" max_depth (Uri.to_string path));
-    (* TODO: Need to pre-validate ~path to make sure it is an actual foreign link (not #<header>) *)
-    let file_str =
+      Error
+        (sprintf "Maximum depth %d exceeded at path %s" max_depth (Uri.to_string path))
+    else (
+      (* TODO: Need to pre-validate ~path to make sure it is an actual foreign link (not #<header>) *)
       match Fetch.fetch_uri_sync ~allow_remote path with
-      | Ok s -> s
-      | Error err -> failwith (sprintf "Error fetching %s: %s" (Uri.to_string path) err)
-    in
-    let doc = Doc.of_string ~strict:strict_commonmark file_str in
-    let top_header = get_first_header doc in
-    PathMap.add path_header_map path top_header;
-    PathMap.add path_path_map path path;
-    let process_definition link =
-      (* need to do something remote here *)
-      let dest_uri = link_dest_uri doc link in
-      let path = resolve_path path dest_uri in
-      if dedupe && PathMap.mem path_header_map path
-      then (
-        (* already inlined, skip *)
-        let ref_text = Inline.Text ("Duplicate Reference to: ", Meta.none) in
-        let reference_link = Inline.Link (link, Meta.none) in
-        let inlines = Inline.Inlines ([ ref_text; reference_link ], Meta.none) in
-        Block.Paragraph (Block.Paragraph.make inlines, Meta.none))
-      else (
-        let new_doc = aux ~depth:(depth + 1) ~path in
-        if add_newlines
-        then (
-          let newline = Block.Blank_line ("", Meta.none) in
-          Block.Blocks ([ Doc.block new_doc; newline ], Meta.none))
-        else Block.Blocks ([ Doc.block new_doc ], Meta.none))
-    in
-    let in_list = ref false in
-    let converted_stack = ref 0 in
-    let inline _m = function
-      | Inline.Link (link, _mta) ->
-        let orig_uri = link_dest_uri doc link in
-        let dest_uri = resolve_path path orig_uri in
-        PathMap.add path_path_map orig_uri dest_uri;
-        Mapper.default
-      | _ -> Mapper.default
-    in
-    let block m b =
-      match b with
-      | Block.Paragraph (inls, _) when !in_list ->
-        (* okay, we are in the list, then see a paragraph: try to check if its links *)
-        (match Block.Paragraph.inline inls with
-         | Inline.Inlines ([ Inline.Text (prefix, _); Inline.Link (link, _) ], _)
-           when bullet_ish_prefix prefix ->
-           (* list > paragraph > link ==> process *)
-           incr converted_stack;
-           Mapper.ret (process_definition link)
-         | Inline.Link (link, _) ->
-           (* list > paragraph > link ==> process *)
-           incr converted_stack;
-           Mapper.ret (process_definition link)
-         | _ -> Mapper.default)
-      | Block.List (l', _) ->
-        let orig_in_list = !in_list in
-        (* set in_list to true *)
-        in_list := true;
-        let items =
-          Block.List'.items l' |> List.map (fun x -> fst x |> Block.List_item.block)
+      | Error err -> Error (sprintf "Error fetching %s: %s" (Uri.to_string path) err)
+      | Ok file_str ->
+        let doc = Doc.of_string ~strict:strict_commonmark file_str in
+        (match get_first_header doc with
+         | None ->
+           (* Print a warning, but proceed - links may be broken *)
+           eprintf
+             "Warning: No header found in document at path %s. Inlining will proceed \
+              without link reconciliation.\n"
+             (Uri.to_string path)
+           (* use the path as the header *)
+         | Some top_header -> PathMap.add path_header_map path top_header);
+        PathMap.add path_path_map path path;
+        let process_definition link =
+          match link_dest_uri doc link with
+          | Error e -> raise (Bad_case e)
+          | Ok dest_uri ->
+            let path = resolve_path path dest_uri in
+            if dedupe && PathMap.mem path_header_map path
+            then (
+              (* already inlined, skip *)
+              let ref_text = Inline.Text ("Duplicate Reference to: ", Meta.none) in
+              let reference_link = Inline.Link (link, Meta.none) in
+              let inlines = Inline.Inlines ([ ref_text; reference_link ], Meta.none) in
+              Block.Paragraph (Block.Paragraph.make inlines, Meta.none))
+            else (
+              match aux ~depth:(depth + 1) ~path with
+              | Error e -> raise (Bad_case e)
+              | Ok new_doc ->
+                if add_newlines
+                then (
+                  let newline = Block.Blank_line ("", Meta.none) in
+                  Block.Blocks ([ Doc.block new_doc; newline ], Meta.none))
+                else Block.Blocks ([ Doc.block new_doc ], Meta.none))
         in
-        let ret = List.map (fun item -> Mapper.map_block m item |> Option.get) items in
-        in_list := orig_in_list;
-        if !converted_stack > 0
-        then (
-          decr converted_stack;
-          Mapper.ret (Block.Blocks (ret, Meta.none)))
-        else Mapper.default
-      | _ -> Mapper.default
-    in
-    let mapper = Mapper.make ~inline ~block () in
-    Mapper.map_doc mapper doc
+        let in_list = ref false in
+        let converted_stack = ref 0 in
+        let inline _m = function
+          | Inline.Link (link, _mta) ->
+            (match link_dest_uri doc link with
+             | Error _ -> Mapper.default
+             | Ok orig_uri ->
+               let dest_uri = resolve_path path orig_uri in
+               PathMap.add path_path_map orig_uri dest_uri;
+               Mapper.default)
+          | _ -> Mapper.default
+        in
+        let block m b =
+          match b with
+          | Block.Paragraph (inls, _) when !in_list ->
+            (* okay, we are in the list, then see a paragraph: try to check if its links *)
+            (match Block.Paragraph.inline inls with
+             | Inline.Inlines ([ Inline.Text (prefix, _); Inline.Link (link, _) ], _)
+               when bullet_ish_prefix prefix ->
+               (* list > paragraph > link ==> process *)
+               incr converted_stack;
+               Mapper.ret (process_definition link)
+             | Inline.Link (link, _) ->
+               (* list > paragraph > link ==> process *)
+               incr converted_stack;
+               Mapper.ret (process_definition link)
+             | _ -> Mapper.default)
+          | Block.List (l', _) ->
+            let orig_in_list = !in_list in
+            (* set in_list to true *)
+            in_list := true;
+            let items =
+              Block.List'.items l' |> List.map (fun x -> fst x |> Block.List_item.block)
+            in
+            let ret =
+              List.map (fun item -> Mapper.map_block m item |> Option.get) items
+            in
+            in_list := orig_in_list;
+            if !converted_stack > 0
+            then (
+              decr converted_stack;
+              Mapper.ret (Block.Blocks (ret, Meta.none)))
+            else Mapper.default
+          | _ -> Mapper.default
+        in
+        let mapper = Mapper.make ~inline ~block () in
+        let result_doc = Mapper.map_doc mapper doc in
+        Ok result_doc)
   in
-  aux ~depth:0 ~path
+  try aux ~depth:0 ~path with
+  | Bad_case e -> Error e
 ;;
 
 let reconcile_pathes path_header_map path_path_map doc =
   let inline _m = function
     | Inline.Link (link, mta) ->
-      let dest_uri = link_dest_uri doc link in
-      let dest_uri = resolve_path (Uri.of_string ".") dest_uri in
-      (* first, find the link in the path_path_map *)
-      let dest_uri = PathMap.find path_path_map dest_uri in
-      (* if the link is in the path-map, convert it *)
-      (match PathMap.find_opt path_header_map dest_uri with
-       | None -> (* default, must not've been mapped *) Mapper.default
-       | Some new_path ->
-         let open Inline in
-         (* the new path is a reference to a header *)
-         let new_path = "#" ^ new_path in
-         let link_ref : Link.reference =
-           `Inline (Link_definition.make ~dest:(new_path, Meta.none) (), Meta.none)
-         in
-         let new_link = Link.make (Link.text link) link_ref in
-         Mapper.ret (Link (new_link, mta)))
+      (match link_dest_uri doc link with
+       | Error _ -> Mapper.default
+       | Ok dest_uri ->
+         let dest_uri = resolve_path (Uri.of_string ".") dest_uri in
+         (* first, find the link in the path_path_map *)
+         (match PathMap.find_opt path_path_map dest_uri with
+          | None -> Mapper.default
+          | Some dest_uri ->
+            (* if the link is in the path-map, convert it *)
+            (match PathMap.find_opt path_header_map dest_uri with
+             | None -> (* default, must not've been mapped *) Mapper.default
+             | Some new_path ->
+               let open Inline in
+               (* the new path is a reference to a header *)
+               let new_path = "#" ^ new_path in
+               let link_ref : Link.reference =
+                 `Inline (Link_definition.make ~dest:(new_path, Meta.none) (), Meta.none)
+               in
+               let new_link = Link.make (Link.text link) link_ref in
+               Mapper.ret (Link (new_link, mta)))))
     | _ -> Mapper.default
   in
   let mapper = Mapper.make ~inline () in
@@ -182,9 +197,10 @@ let monolith_of_file ?(config = default_config) path =
   let path = Uri.of_string path in
   let path_header_map = PathMap.create 16 in
   let path_path_map = PathMap.create 16 in
-  let doc = monolithize_doc_internal ~path_header_map ~path_path_map ~config ~path in
-  (* now, we reconcile the pathes if they have been re-mapped *)
-  let doc = reconcile_pathes path_header_map path_path_map doc in
-  (* TODO: Actually use result type to propagate errors!! *)
-  Ok doc
+  match monolithize_doc_internal ~path_header_map ~path_path_map ~config ~path with
+  | Error e -> Error e
+  | Ok doc ->
+    (* now, we reconcile the pathes if they have been re-mapped *)
+    let doc = reconcile_pathes path_header_map path_path_map doc in
+    Ok doc
 ;;

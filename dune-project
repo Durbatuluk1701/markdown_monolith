@@ -31,7 +31,8 @@
   (dune
    (>= 3.20))
   cmarkit
-  cmdliner
+  (cmdliner
+   (>= 2.0.0))
   lwt
   (ounit2 :with-test)
   (cohttp-lwt-unix

@@ -1,8 +1,7 @@
 Monolithize the Depth Tests - Default Depth (should fail)
   $ markdown_monolith index.md 2>&1 | sed -E '/^\s+(Called|Raised).+/d'
-  markdown_monolith: internal error, uncaught exception:
-                     Failure("Maximum depth 10 exceeded at path page11.md")
-                     
+  markdown_monolith: monolith failed: Maximum depth 10 exceeded at path
+                     page11.md
 
 Monolithize the Dedupe Tests - Duplication Allowed
   $ markdown_monolith --max-depth=11 index.md
