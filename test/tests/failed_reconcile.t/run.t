@@ -21,6 +21,5 @@ Monolithize the Failed Reconcile Tests - Stderr
 
 Monolithize the Failed Reconcile Tests - Force Reconciliation (should fail)
   $ markdown_monolith --force-reconciliation index.md 
-  markdown_monolith: monolith-ification failed: Warning: No header found in
-                     document at path file2_noheader.md.
-  [124]
+  monolith-ification failed: Warning: No header found in document at path file2_noheader.md.
+  [2]

@@ -1,19 +1,26 @@
 open Cmdliner
+open Cmdliner.Term.Syntax
+
+let exit_success = 0
+let exit_write_failed = 1
+let exit_monolith_failed = 2
 
 let write_file file s =
-  let write file s oc =
-    try `Ok (Out_channel.output_string oc s) with
-    | Sys_error e -> `Error (false, Printf.sprintf "%s: %s" file e)
+  let write s oc =
+    Out_channel.output_string oc s;
+    exit_success
   in
   let binary_stdout () = Out_channel.(set_binary_mode stdout true) in
   try
     match file with
     | "-" ->
       binary_stdout ();
-      write file s Out_channel.stdout
-    | file -> Out_channel.with_open_bin file (write file s)
+      write s Out_channel.stdout
+    | file -> Out_channel.with_open_bin file (write s)
   with
-  | Sys_error e -> `Error (false, e)
+  | Sys_error e ->
+    Printf.printf "Writing to file %s failed with msg '%s'" file e;
+    exit_write_failed
 ;;
 
 let run
@@ -37,7 +44,9 @@ let run
       }
   in
   match Monolith.monolith_of_file ~config:cfg input with
-  | Error e -> `Error (false, "monolith-ification failed: " ^ e)
+  | Error e ->
+    Printf.printf "monolith-ification failed: %s\n" e;
+    exit_monolith_failed
   | Ok out ->
     let out = Cmarkit_commonmark.of_doc out in
     write_file output out
@@ -91,21 +100,33 @@ let force_reconciliation_t =
 ;;
 
 let cmd =
-  Cmd.v
-    (Cmd.info
-       "markdown_monolith"
-       ~doc:"Produce a monolithic Markdown file by inlining linked files.")
-    Term.(
-      ret
-        (const run
-         $ infile
-         $ outfile
-         $ allow_remote_t
-         $ max_depth_t
-         $ dedupe_t
-         $ strict_commonmark_t
-         $ add_newlines_t
-         $ force_reconciliation_t))
+  let doc = "Produce a monolithic Markdown file by inlining linked files." in
+  let exits =
+    Cmd.Exit.(
+      info exit_write_failed ~doc:"Writing output file failed."
+      :: info exit_monolith_failed ~doc:"Monolithification failed."
+      :: defaults)
+  in
+  Cmd.make (Cmd.info "markdown_monolith" ~doc ~exits)
+  @@
+  let+ infile = infile
+  and+ outfile = outfile
+  and+ allow_remote_t = allow_remote_t
+  and+ max_depth_t = max_depth_t
+  and+ dedupe_t = dedupe_t
+  and+ strict_commonmark_t = strict_commonmark_t
+  and+ add_newlines_t = add_newlines_t
+  and+ force_reconciliation_t = force_reconciliation_t in
+  run
+    infile
+    outfile
+    allow_remote_t
+    max_depth_t
+    dedupe_t
+    strict_commonmark_t
+    add_newlines_t
+    force_reconciliation_t
 ;;
 
-let () = exit (Cmd.eval cmd)
+let main () = Cmd.eval' cmd
+let () = if !Sys.interactive then () else exit (main ())

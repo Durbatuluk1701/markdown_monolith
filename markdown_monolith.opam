@@ -13,9 +13,9 @@ homepage: "https://github.com/Durbatuluk1701/markdown_monolith"
 doc: "https://durbatuluk1701.github.io/markdown_monolith/"
 bug-reports: "https://github.com/Durbatuluk1701/markdown_monolith/issues"
 depends: [
+  "dune" {>= "3.20"}
   "lwt_ssl" {>= "1.2.0"}
   "ocaml" {>= "4.14"}
-  "dune" {>= "3.20" & >= "3.20"}
   "cmarkit"
   "cmdliner" {>= "2.0.0"}
   "lwt"
