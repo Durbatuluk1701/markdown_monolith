@@ -42,9 +42,7 @@ Monolithize the Basic Tests - with no newlines
   
 
 Help Page
-  $ markdown_monolith --help
-  MARKDOWN_MONOLITH(1)       Markdown_monolith Manual       MARKDOWN_MONOLITH(1)
-  
+  $ markdown_monolith --help=plain
   NAME
          markdown_monolith - Produce a monolithic Markdown file by inlining
          linked files.
@@ -54,8 +52,8 @@ Help Page
   
   ARGUMENTS
          FILE (required)
-             FILE  is  the  file  to  read  from.  (Note  a  remote  file  (i.e.
-             "https://..."   can   be   provided   here   as    well    assuming
+             FILE is the file to read from. (Note a remote file (i.e.
+             "https://..." can be provided here as well assuming
              `--allow-remote` is enabled.)
   
   OPTIONS
@@ -82,8 +80,8 @@ Help Page
   
   COMMON OPTIONS
          --help[=FMT] (default=auto)
-             Show  this  help  in format FMT. The value FMT must be one of auto,
-             pager, groff or plain. With auto, the  format  is  pager  or  plain
+             Show this help in format FMT. The value FMT must be one of auto,
+             pager, groff or plain. With auto, the format is pager or plain
              whenever the TERM env var is dumb or undefined.
   
   EXIT STATUS
@@ -101,4 +99,3 @@ Help Page
   
          125 on unexpected internal errors (bugs).
   
-  Markdown_monolith                                         MARKDOWN_MONOLITH(1)
