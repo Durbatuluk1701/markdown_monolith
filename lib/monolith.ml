@@ -32,7 +32,12 @@ let bullet_ish_prefix prefix =
   || Re.Str.string_match bullet_prefix prefix 0
 ;;
 
-let resolve_path top_path next_path = Uri.resolve "" top_path next_path
+(** [normalize_uri uri] normalizes a URI by resolving dot segments in its path,
+    ensuring consistent representation for comparison and deduplication.
+    e.g. [./<file>.md] and [<file>.md] are normalized to the same URI. *)
+let normalize_uri uri = Uri.resolve "" (Uri.of_string ".") uri
+
+let resolve_path top_path next_path = Uri.resolve "" top_path next_path |> normalize_uri
 
 let get_first_header doc =
   let get_inline_id hding = Block.Heading.inline hding |> Inline.id in
@@ -107,8 +112,10 @@ let monolithize_doc_internal
           match link_dest_uri doc link with
           | Error e -> raise (Bad_case e)
           | Ok dest_uri ->
-            let path = resolve_path path dest_uri in
-            if dedupe && PathMap.mem path_header_map path
+            let resolved = resolve_path path dest_uri in
+            (* Store mapping for link reconciliation *)
+            PathMap.replace path_path_map (normalize_uri dest_uri) resolved;
+            if dedupe && PathMap.mem path_header_map resolved
             then (
               (* already inlined, skip *)
               let ref_text = Inline.Text ("Duplicate Reference to: ", Meta.none) in
@@ -116,7 +123,7 @@ let monolithize_doc_internal
               let inlines = Inline.Inlines ([ ref_text; reference_link ], Meta.none) in
               Block.Paragraph (Block.Paragraph.make inlines, Meta.none))
             else (
-              match aux ~depth:(depth + 1) ~path with
+              match aux ~depth:(depth + 1) ~path:resolved with
               | Error e -> raise (Bad_case e)
               | Ok new_doc ->
                 if add_newlines
@@ -133,7 +140,7 @@ let monolithize_doc_internal
              | Error _ -> Mapper.default
              | Ok orig_uri ->
                let dest_uri = resolve_path path orig_uri in
-               PathMap.add path_path_map orig_uri dest_uri;
+               PathMap.replace path_path_map (normalize_uri orig_uri) dest_uri;
                Mapper.default)
           | _ -> Mapper.default
         in
@@ -184,7 +191,7 @@ let reconcile_pathes path_header_map path_path_map doc =
       (match link_dest_uri doc link with
        | Error _ -> Mapper.default
        | Ok dest_uri ->
-         let dest_uri = resolve_path (Uri.of_string ".") dest_uri in
+         let dest_uri = normalize_uri dest_uri in
          (* first, find the link in the path_path_map *)
          (match PathMap.find_opt path_path_map dest_uri with
           | None -> Mapper.default
@@ -208,7 +215,7 @@ let reconcile_pathes path_header_map path_path_map doc =
 ;;
 
 let monolith_of_file ?(config = default_config) path =
-  let path = Uri.of_string path in
+  let path = Uri.of_string path |> normalize_uri in
   let path_header_map = PathMap.create 16 in
   let path_path_map = PathMap.create 16 in
   match monolithize_doc_internal ~path_header_map ~path_path_map ~config ~path with
