@@ -185,9 +185,54 @@ let monolithize_doc_internal
   | Bad_case e -> Error e
 ;;
 
-let reconcile_pathes path_header_map path_path_map doc =
+let relative_path ~from ~target =
+  (* Extract paths, which should be relative since URIs are normalized *)
+  let from_path = Uri.path from in
+  let target_path = Uri.path target in
+  (* Split on '/', filtering empty segments (from leading/trailing slashes or //) *)
+  let split_path p = String.split_on_char '/' p |> List.filter (fun s -> s <> "") in
+  let from_parts = split_path from_path in
+  let target_parts = split_path target_path in
+  (* Get directory of 'from' by dropping the filename (last component) *)
+  let from_dir =
+    match List.rev from_parts with
+    | [] -> []
+    | _ :: rest -> List.rev rest
+  in
+  (* Find longest common prefix between directories *)
+  let rec find_common acc from_list target_list =
+    match from_list, target_list with
+    | f :: fs, t :: ts when String.equal f t -> find_common (f :: acc) fs ts
+    | _ -> List.rev acc, from_list, target_list
+  in
+  let _common_prefix, from_remaining, target_remaining =
+    find_common [] from_dir target_parts
+  in
+  (* Build relative path: 
+     - "../" for each remaining 'from' directory component
+     - then append remaining target path components *)
+  let up_parts = List.map (fun _ -> "..") from_remaining in
+  let rel_parts = up_parts @ target_remaining in
+  match rel_parts with
+  | [] -> "." (* Same directory *)
+  | parts ->
+    let rel_path = String.concat "/" parts in
+    (* Add "./" prefix for forward-relative paths (not needed for "../" paths) *)
+    if String.starts_with ~prefix:".." rel_path then rel_path else "./" ^ rel_path
+;;
+
+let reconcile_pathes base_path path_header_map path_path_map doc =
   let inline _m = function
     | Inline.Link (link, mta) ->
+      let make_new_link new_dest =
+        let open Inline in
+        let new_link =
+          Link.make
+            (Link.text link)
+            (`Inline (Link_definition.make ~dest:(new_dest, Meta.none) (), Meta.none))
+        in
+        Link (new_link, mta)
+      in
       (match link_dest_uri doc link with
        | Error _ -> Mapper.default
        | Ok dest_uri ->
@@ -195,19 +240,27 @@ let reconcile_pathes path_header_map path_path_map doc =
          (* first, find the link in the path_path_map *)
          (match PathMap.find_opt path_path_map dest_uri with
           | None -> Mapper.default
-          | Some dest_uri ->
+          | Some resolved_uri ->
             (* if the link is in the path-map, convert it *)
-            (match PathMap.find_opt path_header_map dest_uri with
-             | None -> (* default, must not've been mapped *) Mapper.default
+            (match PathMap.find_opt path_header_map resolved_uri with
              | Some new_path ->
-               let open Inline in
                (* the new path is a reference to a header *)
                let new_path = "#" ^ new_path in
-               let link_ref : Link.reference =
-                 `Inline (Link_definition.make ~dest:(new_path, Meta.none) (), Meta.none)
-               in
-               let new_link = Link.make (Link.text link) link_ref in
-               Mapper.ret (Link (new_link, mta)))))
+               Mapper.ret (make_new_link new_path)
+             | None ->
+               (* Not an inlined file, but its relative path may have shifted
+                  due to inlining. Rewrite the link to the resolved path. *)
+               if Uri.equal dest_uri resolved_uri
+               then Mapper.default
+               else (
+                 let new_dest =
+                   match Uri.scheme resolved_uri with
+                   | Some _ -> Uri.to_string resolved_uri (* absolute URI, keep as-is *)
+                   | None ->
+                     (* Compute relative path from base document to resolved target *)
+                     relative_path ~from:base_path ~target:resolved_uri
+                 in
+                 Mapper.ret (make_new_link new_dest)))))
     | _ -> Mapper.default
   in
   let mapper = Mapper.make ~inline () in
@@ -222,6 +275,6 @@ let monolith_of_file ?(config = default_config) path =
   | Error e -> Error e
   | Ok doc ->
     (* now, we reconcile the pathes if they have been re-mapped *)
-    let doc = reconcile_pathes path_header_map path_path_map doc in
+    let doc = reconcile_pathes path path_header_map path_path_map doc in
     Ok doc
 ;;
