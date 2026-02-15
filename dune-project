@@ -13,7 +13,7 @@
 
 (license MIT)
 
-(version 0.1.1)
+(version 0.1.2)
 
 (documentation https://durbatuluk1701.github.io/markdown_monolith/)
 

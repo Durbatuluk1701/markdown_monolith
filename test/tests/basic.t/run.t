@@ -67,7 +67,7 @@ Help Page
   $ markdown_monolith --help=plain
   NAME
          markdown_monolith - Produce a monolithic Markdown file by inlining
-         linked files.
+         linked files and reconciling paths.
   
   SYNOPSIS
          markdown_monolith [OPTION]… FILE

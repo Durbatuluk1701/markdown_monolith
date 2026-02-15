@@ -100,7 +100,9 @@ let force_reconciliation_t =
 ;;
 
 let cmd =
-  let doc = "Produce a monolithic Markdown file by inlining linked files." in
+  let doc =
+    "Produce a monolithic Markdown file by inlining linked files and reconciling paths."
+  in
   let exits =
     Cmd.Exit.(
       info exit_write_failed ~doc:"Writing output file failed."

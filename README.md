@@ -4,7 +4,7 @@
 [![OCaml](https://img.shields.io/badge/OCaml-4.14+-orange.svg)](https://ocaml.org/)
 [![License](https://img.shields.io/badge/license-see%20LICENSE-lightgrey)](./LICENSE)
 
-An OCaml library and CLI tool to produce a single monolithic Markdown file by parsing with Cmarkit, detecting navigational TOC-like link lists, and recursively inlining referenced files.
+An OCaml library and CLI tool to produce a single monolithic Markdown file by parsing with Cmarkit, detecting navigational TOC-like link lists, recursively inlining referenced Markdown files, and automatically reconciling relative paths for non-inlined resources.
 
 **[📚 View Full API Documentation](https://durbatuluk1701.github.io/markdown_monolith/)**
 

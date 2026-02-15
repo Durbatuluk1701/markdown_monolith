@@ -19,6 +19,9 @@
          when [dedupe] is enabled}
       {- {b Anchor Rewriting}: Converts file links to anchor links in the final 
          monolithic document}
+      {- {b Path Reconciliation}: Automatically adjusts relative paths for non-inlined 
+         resources (images, text files, etc.) when their containing document is 
+         inlined from a different directory}
       {- {b Remote Fetching}: Optional support for inlining remote HTTP/HTTPS files 
          (disabled by default for security)}
       {- {b Depth Control}: Configurable maximum recursion depth to prevent runaway 
@@ -212,8 +215,10 @@ val bullet_ish_prefix : string -> bool
     {ol
       {- Parses the Markdown content into a Cmarkit AST}
       {- Traverses the AST looking for lists of links (TOC-like structures)}
-      {- Recursively inlines the content of linked files}
-      {- Rewrites file links to anchor links pointing to inlined content}
+      {- Recursively inlines the content of linked Markdown files}
+      {- Rewrites links to inlined files as anchor links (e.g., [#header])}
+      {- Adjusts relative paths for non-inlined resources (images, text files, etc.) 
+         to remain valid from the root document's perspective}
       {- Returns the final monolithic document as a Cmarkit AST}
     }
     
