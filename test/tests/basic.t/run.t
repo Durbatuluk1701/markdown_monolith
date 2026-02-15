@@ -20,6 +20,28 @@ Monolithize the Basic Tests
   Outro content here.
   
   
+Now do the remote version
+  $ markdown_monolith --allow-remote https://raw.githubusercontent.com/Durbatuluk1701/markdown_monolith/refs/heads/main/test/tests/basic.t/TOC.md
+  # Table of Contents
+  
+  # Introduction
+  
+  Intro content here.
+  
+  ## Getting Started
+  
+  Some getting started information.
+  
+  - Point one
+  - Point two
+    
+  
+  
+  # Outro
+  
+  Outro content here.
+  
+  
 Monolithize the Basic Tests - with no newlines
   $ markdown_monolith --add-newlines=false ./TOC.md
   # Table of Contents
